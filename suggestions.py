@@ -1,0 +1,74 @@
+from constants import DISCOURSE_MARKERS, ACTION_TEMPLATES, WEAK_PATTERNS
+
+def suggest_for_topic_jump(s1, s2, subj2=None):
+    example = f"【因果】{s1} そのため、{s2}\n【対比】{s1} 一方で、{s2}\n【例示】{s1} 例えば、{s2}"
+    return {
+        "advice": ["話題の接続が弱いため、両文をつなぐ1文を追加してください。"],
+        "example": example
+    }
+
+def suggest_for_weak_relation(sentence, category="抽象語逃げ"):
+    action = ACTION_TEMPLATES.get(category, ACTION_TEMPLATES["弱い主張"])
+    example = sentence
+    matched = False
+    for vague, concrete in WEAK_PATTERNS:
+        if vague in sentence:
+            example = sentence.replace(vague, concrete)
+            matched = True
+            break
+    if not matched:
+        example = f"前の調査結果を踏まえ、{sentence}"
+    return {"advice": [action], "example": example}
+
+def suggest_for_missing_subject(sentence):
+    for marker in DISCOURSE_MARKERS:
+        if sentence.startswith(marker):
+            rest = sentence[len(marker):].lstrip("、")
+            return {
+                "advice": ["接続詞の後に主語を明示してください。"],
+                "example": f"{marker}、（主語）は{rest}"
+            }
+    return {
+        "advice": ["主語が省略されています。誰が・何がの主体を明示してください。"],
+        "example": f"（主語）は、{sentence}"
+    }
+
+def generate_suggestions(result):
+    suggestions = []
+    seen = set()
+    subj_map = {s["sentence"]: s["subject"] for s in result["structure"]}
+    for alert in result.get("coherence_alerts", []):
+        s1, s2 = alert["pair"]
+        if s2 in seen: continue
+        seen.add(s2)
+        if "トピックジャンプ" in alert["alert"]:
+            sg = suggest_for_topic_jump(s1, s2, subj_map.get(s2))
+        else:
+            sg = suggest_for_weak_relation(s2)
+        suggestions.append({
+            "alert_type": alert["alert"],
+            "sentence": s2,
+            "one_action": ACTION_TEMPLATES.get(alert["alert"], "文章を見直してください。"),
+            **sg
+        })
+    for alert in result.get("weak_claims", []):
+        if alert["sentence"] in seen: continue
+        seen.add(alert["sentence"])
+        sg = suggest_for_weak_relation(alert["sentence"], alert.get("category", "抽象語逃げ"))
+        suggestions.append({
+            "alert_type": alert["category"],
+            "sentence": alert["sentence"],
+            "one_action": ACTION_TEMPLATES.get(alert["category"], "文章を見直してください。"),
+            **sg
+        })
+    for alert in result.get("subject_alerts", []):
+        if alert["sentence"] in seen: continue
+        seen.add(alert["sentence"])
+        sg = suggest_for_missing_subject(alert["sentence"])
+        suggestions.append({
+            "alert_type": "主語不在",
+            "sentence": alert["sentence"],
+            "one_action": ACTION_TEMPLATES["主語不在"],
+            **sg
+        })
+    return suggestions
