@@ -1,0 +1,6 @@
+streamlit
+spacy
+sentence-transformers
+ginza
+ja-ginza
+torch
