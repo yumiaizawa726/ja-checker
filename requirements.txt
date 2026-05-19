@@ -4,3 +4,5 @@ sentence-transformers
 ginza
 ja-ginza
 torch
+gspread
+google-auth
