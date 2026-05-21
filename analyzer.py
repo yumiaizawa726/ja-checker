@@ -5,6 +5,8 @@ from constants import (
     ACTION_TEMPLATES, MAX_SENTENCE_LEN
 )
 
+TOPIC_EXCLUSIONS = {"今日", "昨日", "明日", "今", "ここ", "そこ", "あそこ", "これ", "それ", "あれ"}
+
 def normalize_punctuation(text):
     text = text.replace("．", "。")
     text = text.replace("；", "。")
@@ -32,14 +34,21 @@ def adjust_confidence(base, sentence):
     if sentence.endswith("だ。") or sentence.endswith("である。"): base -= 0.1
     return round(max(0.0, min(base, 1.0)), 2)
 
+def get_compound_prefix(token):
+    compounds = [t.text for t in token.lefts if t.dep_ == "compound"]
+    return "".join(compounds) + token.text if compounds else token.text
+
 def analyze_sentence_structure(doc, human_words, abstract_words):
     results = []
     for sent in doc.sents:
         subj = root = obj = subj_conf = subj_type = None
+
         for token in sent:
             if token.dep_ == "ROOT":
                 root = token.lemma_
-            if token.dep_ == "nsubj":
+
+            # ── nsubj ───────────────────────────────
+            if token.dep_ == "nsubj" and subj is None:
                 if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
                     continue
                 if token.head.lemma_ in EXPERIENCER_PREDICATES:
@@ -47,17 +56,44 @@ def analyze_sentence_structure(doc, human_words, abstract_words):
                     continue
                 if token.head.head.pos_ in ("NOUN", "PROPN"):
                     continue
-                subj = token.text
-                subj_type = classify_subject_type(token.text, human_words, abstract_words)
+                subj = get_compound_prefix(token)
+                subj_type = classify_subject_type(subj, human_words, abstract_words)
                 if any(c.text == "が" for c in token.children):
                     base = 0.95
                 elif any(c.text == "は" for c in token.children):
-                    base = 0.75
+                    base = 0.85
                 else:
                     base = 0.55
                 subj_conf = adjust_confidence(base, sent.text)
+
+            # ── topic ───────────────────────────────
+            if token.dep_ == "topic" and subj is None:
+                if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
+                    continue
+                if token.head.lemma_ in EXPERIENCER_PREDICATES:
+                    obj = token.text
+                    continue
+                subj = get_compound_prefix(token)
+                subj_type = classify_subject_type(subj, human_words, abstract_words)
+                base = 0.80
+                subj_conf = adjust_confidence(base, sent.text)
+
             if token.dep_ in ("obj", "dobj"):
                 obj = token.text
+
+        # ── fallback：名詞＋「は」を主語として検出 ──
+        if subj is None:
+            tokens = list(sent)
+            for i, token in enumerate(tokens):
+                if token.text == "は" and i > 0:
+                    candidate = tokens[i - 1]
+                    if candidate.pos_ in ("NOUN", "PROPN") and candidate.text not in TOPIC_EXCLUSIONS:
+                        compounds = [t.text for t in candidate.lefts if t.dep_ == "compound"]
+                        subj = "".join(compounds) + candidate.text if compounds else candidate.text
+                        subj_type = classify_subject_type(subj, human_words, abstract_words)
+                        subj_conf = adjust_confidence(0.70, sent.text)
+                        break
+
         results.append({
             "sentence": sent.text,
             "subject": subj,
