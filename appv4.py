@@ -9,7 +9,6 @@ from suggestions import generate_suggestions
 
 st.set_page_config(page_title="日本語文章チェッカー", layout="wide")
 
-@st.cache_resource
 def load_models():
     nlp = spacy.load("ja_ginza", exclude=["compound_splitter"])
     model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
@@ -101,6 +100,15 @@ if "result" in st.session_state:
                     st.success(a["split_suggestion"].replace("\n", "\n\n"))
                 else:
                     st.info("この文の主語・述語・目的語を1セットに絞り、残りは別文に分割してください。")
+
+    if result.get("structure_issues"):
+        st.subheader("📐 構造アドバイス")
+        for issue in result["structure_issues"]:
+            with st.expander(f"⚠️ {issue['pattern']} ／ {issue['sentence'][:25]}..."):
+                st.warning(issue["advice"])
+                if issue.get("template"):
+                    st.markdown("**書き直しテンプレート**")
+                    st.success(issue["template"])
 
     if suggestions:
         st.subheader("💡 改善提案")

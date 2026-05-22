@@ -37,6 +37,30 @@ WEAK_CLAIM_PATTERNS = {
     "抽象語逃げ":   ["可能性がある", "示唆される", "観点から", "課題がある", "検討が必要"],
     "結論ジャンプ": ["明らかである", "証明された", "示された", "明らかにした"],
 }
+
+STRUCTURE_PATTERNS = {
+    "目的が最後": {
+        "triggers": ["ことを目的としました", "ことを目指します", "ために行いました", "ことを目的とする"],
+        "advice": "目的は文章の冒頭に置くと読み手に伝わりやすくなります。",
+        "template": "本研究の目的は、〇〇することです。"
+    },
+    "一文に複数動詞": {
+        "triggers": None,
+        "advice": "1文に動詞が3つ以上あります。動詞1つにつき1文を目安に分割してください。",
+        "template": None
+    },
+    "接続詞の連続": {
+        "triggers": ["また、", "そのうえで、", "さらに、", "加えて、"],
+        "advice": "接続詞が連続しています。段落を分けることを検討してください。",
+        "template": None
+    },
+    "主語の不統一": {
+        "triggers": None,
+        "advice": "文ごとに主語が変わっています。主語を統一するか、段落を分けてください。",
+        "template": None
+    }
+}
+
 WEAK_CLAIMS_FLAT = [p for patterns in WEAK_CLAIM_PATTERNS.values() for p in patterns]
 MODES = {
     "論文（厳密）": {

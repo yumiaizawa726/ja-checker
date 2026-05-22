@@ -47,7 +47,6 @@ def analyze_sentence_structure(doc, human_words, abstract_words):
             if token.dep_ == "ROOT":
                 root = token.lemma_
 
-            # ── nsubj ───────────────────────────────
             if token.dep_ == "nsubj" and subj is None:
                 if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
                     continue
@@ -66,7 +65,6 @@ def analyze_sentence_structure(doc, human_words, abstract_words):
                     base = 0.55
                 subj_conf = adjust_confidence(base, sent.text)
 
-            # ── topic ───────────────────────────────
             if token.dep_ == "topic" and subj is None:
                 if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
                     continue
@@ -81,7 +79,6 @@ def analyze_sentence_structure(doc, human_words, abstract_words):
             if token.dep_ in ("obj", "dobj"):
                 obj = token.text
 
-        # ── fallback：名詞＋「は」を主語として検出 ──
         if subj is None:
             tokens = list(sent)
             for i, token in enumerate(tokens):
@@ -220,6 +217,64 @@ def detect_long_sentences(doc, max_len=MAX_SENTENCE_LEN):
             })
     return results
 
+def detect_structure_issues(doc, structure_results):
+    from constants import STRUCTURE_PATTERNS
+    issues = []
+    sentences = [sent.text for sent in doc.sents]
+
+    # ① 目的が最後に来ている
+    last = sentences[-1] if sentences else ""
+    for trigger in STRUCTURE_PATTERNS["目的が最後"]["triggers"]:
+        if trigger in last and len(sentences) > 1:
+            issues.append({
+                "pattern": "目的が最後",
+                "sentence": last,
+                "advice": STRUCTURE_PATTERNS["目的が最後"]["advice"],
+                "template": STRUCTURE_PATTERNS["目的が最後"]["template"]
+            })
+            break
+
+   # ② 一文に動詞が3つ以上かつ読点が3つ以上
+    for sent in doc.sents:
+        verb_count = sum(1 for t in sent if t.pos_ == "VERB")
+        comma_count = sent.text.count("、")
+        if verb_count >= 3 and comma_count >= 3:
+            issues.append({
+                "pattern": "一文に複数動詞",
+                "sentence": sent.text,
+                "advice": f"この文に動詞が{verb_count}つ、読点が{comma_count}つあります。1文につき動詞1つを目安に分割してください。",
+                "template": None
+            })
+
+    # ③ 接続詞の連続
+    consecutive = 0
+    for sent in sentences:
+        if any(t in sent for t in STRUCTURE_PATTERNS["接続詞の連続"]["triggers"]):
+            consecutive += 1
+        else:
+            consecutive = 0
+        if consecutive >= 2:
+            issues.append({
+                "pattern": "接続詞の連続",
+                "sentence": sent,
+                "advice": STRUCTURE_PATTERNS["接続詞の連続"]["advice"],
+                "template": None
+            })
+            break
+
+# ④ 主語の不統一
+    subjects = [r["subject"] for r in structure_results if r["subject"]]
+    if len(set(subjects)) > 2 and len(subjects) >= 3:
+        msg = STRUCTURE_PATTERNS["主語の不統一"]["advice"]
+        cnt = len(set(subjects))
+        issues.append({
+            "pattern": "主語の不統一",
+            "sentence": "（文章全体）",
+            "advice": f"主語が{cnt}種類あります。{msg}",
+            "template": None
+        })
+    return issues
+
 def abstract_density(doc):
     tokens = [t for t in doc if not t.is_punct]
     if not tokens: return 0
@@ -277,6 +332,7 @@ def full_analysis(text, mode_cfg, nlp, model, util, negative_patterns=None):
     coherence_alerts = semantic_coherence(doc, mode_cfg, nlp, model, util)
     weak_claims = detect_weak_claims(doc, nlp, negative_patterns)
     long_sentences = detect_long_sentences(nlp(text))
+    structure_issues = detect_structure_issues(doc, structure)
     poetic = detect_poetic_density(doc, mode_cfg)
     score = compute_score(structure, subject_alerts, coherence_alerts, weak_claims, poetic, long_sentences)
     return {
@@ -286,5 +342,6 @@ def full_analysis(text, mode_cfg, nlp, model, util, negative_patterns=None):
         "coherence_alerts": coherence_alerts,
         "weak_claims": weak_claims,
         "long_sentences": long_sentences,
+        "structure_issues": structure_issues,
         "poetic": poetic,
     }
