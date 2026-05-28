@@ -42,54 +42,64 @@ def analyze_sentence_structure(doc, human_words, abstract_words):
     results = []
     for sent in doc.sents:
         subj = root = obj = subj_conf = subj_type = None
+        tokens = list(sent)
 
-        for token in sent:
+        for token in tokens:
             if token.dep_ == "ROOT":
                 root = token.lemma_
-
-            if token.dep_ == "nsubj" and subj is None:
-                if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
-                    continue
-                if token.head.lemma_ in EXPERIENCER_PREDICATES:
-                    obj = token.text
-                    continue
-                if token.head.head.pos_ in ("NOUN", "PROPN"):
-                    continue
-                subj = get_compound_prefix(token)
-                subj_type = classify_subject_type(subj, human_words, abstract_words)
-                if any(c.text == "が" for c in token.children):
-                    base = 0.95
-                elif any(c.text == "は" for c in token.children):
-                    base = 0.85
-                else:
-                    base = 0.55
-                subj_conf = adjust_confidence(base, sent.text)
-
-            if token.dep_ == "topic" and subj is None:
-                if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
-                    continue
-                if token.head.lemma_ in EXPERIENCER_PREDICATES:
-                    obj = token.text
-                    continue
-                subj = get_compound_prefix(token)
-                subj_type = classify_subject_type(subj, human_words, abstract_words)
-                base = 0.80
-                subj_conf = adjust_confidence(base, sent.text)
-
             if token.dep_ in ("obj", "dobj"):
                 obj = token.text
 
+        # ① nsubj
+        for token in tokens:
+            if token.dep_ != "nsubj":
+                continue
+            if token.head.dep_ in ("acl", "relcl", "compound", "advcl"):
+                continue
+            if token.head.lemma_ in EXPERIENCER_PREDICATES:
+                continue
+            subj = get_compound_prefix(token)
+            subj_type = classify_subject_type(subj, human_words, abstract_words)
+            base = 0.95 if any(c.text == "が" for c in token.children) else 0.85
+            subj_conf = adjust_confidence(base, sent.text)
+            break
+
+        # ② topic
         if subj is None:
-            tokens = list(sent)
-            for i, token in enumerate(tokens):
-                if token.text == "は" and i > 0:
+            for token in tokens:
+                if token.dep_ != "topic":
+                    continue
+                subj = get_compound_prefix(token)
+                subj_type = classify_subject_type(subj, human_words, abstract_words)
+                subj_conf = adjust_confidence(0.80, sent.text)
+                break
+
+        # ③ 「〇〇では」救済
+        if subj is None:
+            for i in range(len(tokens) - 1):
+                current = tokens[i]
+                nxt = tokens[i + 1]
+                if current.text == "で" and nxt.text == "は":
+                    if i == 0:
+                        continue
                     candidate = tokens[i - 1]
                     if candidate.pos_ in ("NOUN", "PROPN") and candidate.text not in TOPIC_EXCLUSIONS:
-                        compounds = [t.text for t in candidate.lefts if t.dep_ == "compound"]
-                        subj = "".join(compounds) + candidate.text if compounds else candidate.text
+                        subj = get_compound_prefix(candidate)
                         subj_type = classify_subject_type(subj, human_words, abstract_words)
-                        subj_conf = adjust_confidence(0.70, sent.text)
+                        subj_conf = adjust_confidence(0.65, sent.text)
                         break
+
+        # ④ 「〇〇は」fallback
+        if subj is None:
+            for i, token in enumerate(tokens):
+                if token.text != "は" or i == 0:
+                    continue
+                candidate = tokens[i - 1]
+                if candidate.pos_ in ("NOUN", "PROPN") and candidate.text not in TOPIC_EXCLUSIONS:
+                    subj = get_compound_prefix(candidate)
+                    subj_type = classify_subject_type(subj, human_words, abstract_words)
+                    subj_conf = adjust_confidence(0.70, sent.text)
+                    break
 
         results.append({
             "sentence": sent.text,
@@ -234,7 +244,7 @@ def detect_structure_issues(doc, structure_results):
             })
             break
 
-   # ② 一文に動詞が3つ以上かつ読点が3つ以上
+    # ② 一文に動詞が3つ以上かつ読点が3つ以上
     for sent in doc.sents:
         verb_count = sum(1 for t in sent if t.pos_ == "VERB")
         comma_count = sent.text.count("、")
@@ -246,7 +256,7 @@ def detect_structure_issues(doc, structure_results):
                 "template": None
             })
 
-    # ③ 接続詞の連続
+    # ③ 接続詞の連続（文をまたぐ）
     consecutive = 0
     for sent in sentences:
         if any(t in sent for t in STRUCTURE_PATTERNS["接続詞の連続"]["triggers"]):
@@ -262,7 +272,21 @@ def detect_structure_issues(doc, structure_results):
             })
             break
 
-# ④ 主語の不統一
+    # ③-b 1文内に接続詞が2つ以上
+    for sent in doc.sents:
+        marker_count = sum(
+            1 for t in STRUCTURE_PATTERNS["接続詞の連続"]["triggers"]
+            if t in sent.text
+        )
+        if marker_count >= 2:
+            issues.append({
+                "pattern": "接続詞の連続",
+                "sentence": sent.text,
+                "advice": f"1文に接続詞が{marker_count}つあります。文を分けるか、接続詞を1つに絞ってください。",
+                "template": None
+            })
+
+    # ④ 主語の不統一
     subjects = [r["subject"] for r in structure_results if r["subject"]]
     if len(set(subjects)) > 2 and len(subjects) >= 3:
         msg = STRUCTURE_PATTERNS["主語の不統一"]["advice"]
@@ -273,6 +297,7 @@ def detect_structure_issues(doc, structure_results):
             "advice": f"主語が{cnt}種類あります。{msg}",
             "template": None
         })
+
     return issues
 
 def abstract_density(doc):
@@ -296,33 +321,55 @@ def detect_poetic_density(doc, mode_cfg):
     elif density > 0.15: alert = "抽象度過多"
     return {"ratio": round(ratio, 3), "abstract_density": density, "alert": alert}
 
-def compute_score(structure, subject_alerts, coherence_alerts, weak_claims, poetic, long_sentences):
+def compute_score(structure, subject_alerts, coherence_alerts, weak_claims, poetic, long_sentences, structure_issues=None):
     confs = [s["subject_confidence"] for s in structure if s["subject_confidence"]]
-    subject_score = max(0, round(sum(confs)/len(confs)*100, 1) - len(subject_alerts)*15) if confs else 0.0
+
+    # ここを差し替え
+    subject_score = max(0, round(sum(confs)/len(confs)*100, 1)) if confs else 0.0
+    subject_score = max(0, subject_score - len(subject_alerts) * 20)
+
     logic_score = max(0, 100 - sum(
         30 if a["alert"] in ("トピックジャンプ", "トピックジャンプ（短文）") else 15
         for a in coherence_alerts
     ))
+
+    # 主語が全文で不在の場合は追加ペナルティ
+    if not confs and subject_alerts:
+        subject_score = 0.0
+        logic_score = max(0, logic_score - len(subject_alerts) * 15)
+
     poetic_penalty = 0
     if poetic and poetic["alert"]:
         poetic_penalty = min(30, int(poetic.get("ratio", 0)*30) + int(poetic.get("abstract_density", 0)*50))
     long_penalty = min(30, len(long_sentences) * 15)
-    overall = round((subject_score*0.4 + logic_score*0.6) - poetic_penalty - long_penalty, 1)
+
+    # 構造ペナルティを追加
+    structure_penalty = 0
+    if structure_issues:
+        for issue in structure_issues:
+            if issue["pattern"] == "接続詞の連続": structure_penalty += 10
+            elif issue["pattern"] == "一文に複数動詞": structure_penalty += 10
+            elif issue["pattern"] == "目的が最後": structure_penalty += 10
+            elif issue["pattern"] == "主語の不統一": structure_penalty += 15
+        structure_penalty = min(30, structure_penalty)
+
+    overall = round((subject_score*0.4 + logic_score*0.6) - poetic_penalty - long_penalty - structure_penalty, 1)
     return {
         "総合スコア": max(0, overall),
         "主語明確性": subject_score,
         "論理整合性": logic_score,
         "ポエム減点": poetic_penalty,
         "長文減点": long_penalty,
+        "構造減点": structure_penalty,
         "問題数": {
             "主語": len(subject_alerts),
             "論理": len(coherence_alerts),
             "表現": len(weak_claims),
             "長文": len(long_sentences),
+            "構造": len(structure_issues) if structure_issues else 0,
             "ポエム": 1 if poetic and poetic["alert"] else 0
         }
     }
-
 def full_analysis(text, mode_cfg, nlp, model, util, negative_patterns=None):
     clean_text = preprocess_text(text)
     doc = nlp(clean_text)
@@ -334,7 +381,7 @@ def full_analysis(text, mode_cfg, nlp, model, util, negative_patterns=None):
     long_sentences = detect_long_sentences(nlp(text))
     structure_issues = detect_structure_issues(doc, structure)
     poetic = detect_poetic_density(doc, mode_cfg)
-    score = compute_score(structure, subject_alerts, coherence_alerts, weak_claims, poetic, long_sentences)
+    score = compute_score(structure, subject_alerts, coherence_alerts, weak_claims, poetic, long_sentences, structure_issues)
     return {
         "score": score,
         "structure": structure,

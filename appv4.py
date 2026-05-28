@@ -9,9 +9,10 @@ from suggestions import generate_suggestions
 
 st.set_page_config(page_title="日本語文章チェッカー", layout="wide")
 
+@st.cache_resource
 def load_models():
     nlp = spacy.load("ja_ginza", exclude=["compound_splitter"])
-    model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+    model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")#モデルサイズ日本語対応paraphrase-multilingual-MiniLM-L12-v2,intfloat/multilingual-e5-small
     return nlp, model
 
 nlp, model = load_models()
@@ -70,14 +71,15 @@ if "result" in st.session_state:
     score = result["score"]
 
     st.subheader("📊 スコア")
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("総合スコア", score["総合スコア"])
     c2.metric("主語明確性", score["主語明確性"])
     c3.metric("論理整合性", score["論理整合性"])
     c4.metric("長文減点", score["長文減点"])
-    c5.metric("ポエム減点", score["ポエム減点"])
+    c5.metric("構造減点", score["構造減点"])
+    c6.metric("ポエム減点", score["ポエム減点"])
     p = score["問題数"]
-    st.caption(f"問題数 ／ 主語: {p['主語']}件　論理: {p['論理']}件　表現: {p['表現']}件　長文: {p['長文']}件　ポエム: {p['ポエム']}件")
+    st.caption(f"問題数 ／ 主語: {p['主語']}件　論理: {p['論理']}件　表現: {p['表現']}件　長文: {p['長文']}件　構造: {p['構造']}件　ポエム: {p['ポエム']}件")
 
     st.subheader("🔍 構文解析")
     for s in result["structure"]:
