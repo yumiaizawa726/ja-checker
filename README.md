@@ -1,14 +1,14 @@
 ---
 title: 日本語文章チェッカー
-emoji: 🇯🇵
+emoji: 📚
 colorFrom: blue
 colorTo: green
 sdk: docker
-app_file: appv4.py
 pinned: false
+
 ---
 
-# 🇯🇵 日本語文章チェッカー
+#  📚 日本語文章チェッカー
 
 ## 何をするツールか
 日本語の文章を構造的に正しく評価するツール
