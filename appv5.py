@@ -152,7 +152,7 @@ with left_col:
             "最終テキスト（コピー用）",
             value=final_text,
             height=150,
-            key="final_output",
+
         )
 
 # ══════════════════════════════════════════
