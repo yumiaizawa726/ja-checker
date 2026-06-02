@@ -21,19 +21,20 @@ def suggest_for_weak_relation(sentence, category="抽象語逃げ"):
     return {"advice": [action], "example": example}
 
 def suggest_for_missing_subject(sentence):
-    # 先頭の接続詞を連続して除去
+    # 短い接続詞のみ先頭から1つ除去（「本研究では」などのトピック句は残す）
+    CONJUNCTIONS = ["しかし、", "また、", "さらに、", "そして、", "ただし、", "なお、", "一方、", "つまり、"]
     rest = sentence
-    changed = True
-    while changed:
-        changed = False
-        for marker in DISCOURSE_MARKERS:
-            if rest.startswith(marker):
-                rest = rest[len(marker):].lstrip("、")
-                changed = True
+    for conj in CONJUNCTIONS:
+        if rest.startswith(conj):
+            rest = rest[len(conj):]
+            break
+    if not rest:
+        rest = sentence
     return {
         "advice": ["主語が省略されています。誰が・何がの主体を明示してください。"],
         "example": f"（主語）は、{rest}"
     }
+
 def generate_suggestions(result):
     suggestions = []
     seen = set()

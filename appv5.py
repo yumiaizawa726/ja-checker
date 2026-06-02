@@ -3,7 +3,7 @@ import spacy
 from sentence_transformers import SentenceTransformer, util
 from constants import MODES
 from log_manager import load_log, record_action, build_negative_patterns
-from analyzer import full_analysis, preprocess_text
+from analyzer import full_analysis
 from suggestions import generate_suggestions
 
 st.set_page_config(page_title="日本語文章チェッカー", layout="wide")
@@ -120,10 +120,8 @@ with left_col:
                 result = full_analysis(text_input, mode_cfg, nlp, model, util, negative_patterns)
                 suggestions = generate_suggestions(result)
 
-                # clean_text ベースで文リストを作る（長文アラートとの一致のため）
-                clean = preprocess_text(text_input)
-                doc = nlp(clean)
-                sentences = [sent.text for sent in doc.sents]
+                # result["structure"] から文リストを取る（full_analysis内部と完全一致）
+                sentences = [s["sentence"] for s in result["structure"]]
 
                 st.session_state["result"] = result
                 st.session_state["suggestions"] = suggestions
