@@ -67,9 +67,9 @@ with st.sidebar:
     st.header("📖 使い方")
     st.markdown("""
 1. テキストを貼り付けて **「分析する」** を押す
-2. 画面中央の改善提案を上から順に確認する
+2. 改善提案を上から順に確認する
 3. **「採用」** を押すと右側の改善後テキストに反映される
-4. 右側のテキストをコピーして完成
+4. 全部確認したら右側のテキストをコピーして完成
 """)
 
     st.divider()
@@ -77,13 +77,11 @@ with st.sidebar:
     log = load_log()
     if log:
         adopted = len([e for e in log if e["action"] == "adopted"])
-        rejected = len([e for e in log if e["action"] == "rejected"])
         st.metric("総記録数", len(log))
         st.metric("採用率", f"{round(adopted / len(log) * 100, 1)}%")
         negative_patterns = build_negative_patterns(log, nlp)
         total_patterns = sum(len(v) for v in negative_patterns.values())
         if total_patterns > 0:
-            st.divider()
             st.caption(f"抑制パターン: {total_patterns}件学習済み")
     else:
         st.caption("まだログがありません")
@@ -93,6 +91,7 @@ with st.sidebar:
 # タイトル & 入力エリア（最上部・全幅）
 # ─────────────────────────────────────────
 st.title("🇯🇵 日本語文章チェッカー")
+st.caption("文章を貼り付けて「分析する」を押すと、改善提案が表示されます。提案を採用しながら文章を仕上げてください。")
 
 with st.container():
     text_input = st.text_area(
@@ -121,7 +120,7 @@ if run:
         st.warning("テキストを入力してください")
 
 # ─────────────────────────────────────────
-# 分析結果エリア（分析後のみ表示）
+# 分析結果エリア
 # ─────────────────────────────────────────
 if st.session_state["result"] is not None:
     result = st.session_state["result"]
@@ -129,21 +128,29 @@ if st.session_state["result"] is not None:
     score = result["score"]
     p = score["問題数"]
 
-    # ── 問題件数サマリー（簡略スコア） ──────────
+    # ── 問題件数サマリー ──────────────────────
     st.divider()
     total_issues = p["主語"] + p["論理"] + p["長文"] + p["構造"]
-    if total_issues == 0:
-        st.success("✅ 問題は検出されませんでした")
-    else:
-        st.markdown(f"### 🔎 {total_issues}件の改善候補が見つかりました")
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("主語の問題", f"{p['主語']}件", help="主語が省略・不明瞭な文")
-        m2.metric("論理の問題", f"{p['論理']}件", help="文間のつながりが弱い箇所")
-        m3.metric("長文", f"{p['長文']}件", help="80文字を超える長い文")
-        m4.metric("構造の問題", f"{p['構造']}件", help="接続詞の連続・複数動詞など")
+    adopted_count = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
+    remaining = len(suggestions) - adopted_count
 
-    # スコア詳細は折りたたみ
-    with st.expander("📊 スコア詳細を見る", expanded=False):
+    if total_issues == 0:
+        st.success("✅ 改善提案はありません。そのまま使用できます。")
+    else:
+        col_s, col_l, col_lo, col_st, col_rem = st.columns(5)
+        col_s.metric("主語の問題", f"{p['主語']}件", help="主語が省略・不明瞭な文")
+        col_l.metric("論理の問題", f"{p['論理']}件", help="文間のつながりが弱い箇所")
+        col_lo.metric("長文", f"{p['長文']}件", help="80文字を超える長い文")
+        col_st.metric("構造の問題", f"{p['構造']}件", help="接続詞の連続・複数動詞など")
+        col_rem.metric(
+            "残り提案",
+            f"{remaining}件",
+            delta=f"-{adopted_count}件採用済み" if adopted_count > 0 else None,
+            delta_color="normal",
+        )
+
+    # スコア詳細は折りたたみ・デフォルト非表示
+    with st.expander("📊 スコア詳細（上級者向け）", expanded=False):
         st.caption("総合スコア = 主語明確性(40%) + 論理整合性(60%) − 各減点。100点満点。")
         c1, c2, c3 = st.columns(3)
         c1.metric("総合スコア", score["総合スコア"])
@@ -166,7 +173,7 @@ if st.session_state["result"] is not None:
         st.subheader("💡 改善提案")
 
         if not suggestions:
-            st.success("改善提案はありません。文章の質は良好です。")
+            st.success("改善提案はありません。")
         else:
             st.caption(f"{len(suggestions)}件 ／ 上から順に確認してください")
 
@@ -191,26 +198,26 @@ if st.session_state["result"] is not None:
                 )
 
                 with st.container(border=True):
-                    # ① アラート種別
+                    # ヘッダー行：種別 + 採用済みバッジ
                     h1, h2 = st.columns([3, 1])
                     h1.markdown(f"**{icon} {s['alert_type']}**")
                     if already_adopted:
                         h2.success("✅ 採用済み")
 
-                    # ② 対象文
+                    # ① 対象文
                     st.caption("対象文")
                     st.error(s["sentence"])
 
-                    # ③ 何が問題か（advice）
+                    # ② 何が問題か
                     advice_text = s["advice"][0] if isinstance(s["advice"], list) else s["advice"]
                     st.caption("何が問題か")
                     st.warning(advice_text)
 
-                    # ④ 今すぐやること
+                    # ③ 今すぐやること
                     st.caption("今すぐやること")
                     st.info(s["one_action"])
 
-                    # ⑤ 改善例（Before / After）
+                    # ④ 改善例（Before / After）
                     st.caption("改善例")
                     ba_l, ba_r = st.columns(2)
                     with ba_l:
@@ -229,7 +236,7 @@ if st.session_state["result"] is not None:
                             unsafe_allow_html=True,
                         )
 
-                    # ⑥ 採用／却下ボタン
+                    # ⑤ 採用／却下ボタン
                     if not already_adopted:
                         st.markdown("")
                         btn1, btn2 = st.columns(2)
@@ -238,14 +245,15 @@ if st.session_state["result"] is not None:
                             if after_text.startswith("【"):
                                 after_text = after_text.split("】", 1)[-1].strip()
                             apply_adoption(s["sentence"], after_text, s["alert_type"], s["one_action"])
+                            st.toast("✅ 採用しました。右側のテキストに反映されました。")
                             st.rerun()
                         if btn2.button("却下", key=f"skip_{i}", use_container_width=True):
                             apply_skip(s["sentence"], s["alert_type"], s["one_action"])
                             st.toast("却下しました")
 
-        # 構文解析（折りたたみ）
+        # 構文解析（折りたたみ・最下部）
         st.markdown("")
-        with st.expander("🔍 構文解析の詳細", expanded=False):
+        with st.expander("🔍 構文解析の詳細（上級者向け）", expanded=False):
             st.caption("確信度：GiNZAが主語と判定した確からしさ（100%に近いほど明確）")
             for s in result["structure"]:
                 label = s["sentence"][:35] + "…" if len(s["sentence"]) > 35 else s["sentence"]
@@ -257,7 +265,6 @@ if st.session_state["result"] is not None:
                     conf = s["subject_confidence"]
                     cols[3].markdown(f"**確信度** {str(int(conf * 100)) + '%' if conf else '―'}")
 
-        # 長文アラート（折りたたみ）
         if result.get("long_sentences"):
             with st.expander(f"📏 長文アラート（{len(result['long_sentences'])}件）", expanded=False):
                 for a in result["long_sentences"]:
@@ -268,7 +275,6 @@ if st.session_state["result"] is not None:
                     else:
                         st.info("主語・述語・目的語を1セットに絞り、残りは別文に分割してください。")
 
-        # 構造アドバイス（折りたたみ）
         if result.get("structure_issues"):
             with st.expander(f"📐 構造アドバイス（{len(result['structure_issues'])}件）", expanded=False):
                 for issue in result["structure_issues"]:
@@ -278,52 +284,51 @@ if st.session_state["result"] is not None:
                         st.success(f"書き直しテンプレート：{issue['template']}")
 
     # ══════════════════════════════════════════
-    # 右：原文 / 改善後テキスト（DeepL形式）
+    # 右：原文 / 改善後テキスト（常時表示・DeepL形式）
     # ══════════════════════════════════════════
     with main_right:
-        st.subheader("📄 Before / After")
+        st.subheader("📄 テキスト比較")
+        st.caption("採用するたびに右側が更新されます")
 
         top_l, top_r = st.columns(2)
 
-        # 原文
         with top_l:
-            st.caption("原文")
+            st.markdown("**原文**")
             original_text = get_original_text()
             st.markdown(
                 f"<div style='background:#f8f8f8;border:1px solid #ddd;border-radius:8px;"
-                f"padding:14px;min-height:200px;font-size:0.92em;line-height:1.8;"
-                f"color:#333;white-space:pre-wrap'>{original_text}</div>",
+                f"padding:14px;min-height:220px;font-size:0.92em;line-height:1.9;"
+                f"color:#555;white-space:pre-wrap'>{original_text}</div>",
                 unsafe_allow_html=True,
             )
 
-        # 改善後テキスト（採用が蓄積される）
         with top_r:
             adopted_count = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
-            st.caption(f"改善後テキスト（{adopted_count}件採用済み）")
+            label = f"**改善後**　" + (f"（{adopted_count}件反映済み）" if adopted_count > 0 else "")
+            st.markdown(label)
 
-            # 文ごとに色分け
             lines_html = ""
             for ws in st.session_state["working_sentences"]:
                 if ws["adopted"]:
                     lines_html += (
-                        f"<span style='background:#d4edda;border-radius:3px;"
-                        f"padding:1px 3px'>{ws['current']}</span>"
+                        f"<span style='background:#c8f7c5;border-radius:3px;"
+                        f"padding:1px 2px'>{ws['current']}</span>"
                     )
                 else:
                     lines_html += ws["current"]
 
             st.markdown(
                 f"<div style='background:#f0fff4;border:1px solid #b2dfdb;border-radius:8px;"
-                f"padding:14px;min-height:200px;font-size:0.92em;line-height:1.8;"
+                f"padding:14px;min-height:220px;font-size:0.92em;line-height:1.9;"
                 f"color:#333;white-space:pre-wrap'>{lines_html}</div>",
                 unsafe_allow_html=True,
             )
 
-        # コピー用テキストエリア
+        # コピー用
         st.markdown("")
         final_text = get_working_text()
         st.text_area(
-            "コピー用（改善後テキスト）",
+            "コピー用（改善後テキスト全文）",
             value=final_text,
-            height=150,
+            height=130,
         )
