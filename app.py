@@ -1,4 +1,3 @@
-%%writefile /Users/aizawayumi/Ja_chek_Prot/appv6.py
 import streamlit as st
 import spacy
 from sentence_transformers import SentenceTransformer, util
