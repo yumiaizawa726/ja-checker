@@ -284,29 +284,19 @@ if st.session_state["result"] is not None:
                         st.success(f"書き直しテンプレート：{issue['template']}")
 
     # ══════════════════════════════════════════
-    # 右：原文 / 改善後テキスト（常時表示・DeepL形式）
+    # 右：原文 / 改善後テキスト（タブ形式）
     # ══════════════════════════════════════════
     with main_right:
         st.subheader("📄 テキスト比較")
-        st.caption("採用するたびに右側が更新されます")
+        st.caption("採用するたびに「改善後」が更新されます")
 
-        top_l, top_r = st.columns(2)
+        adopted_count = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
+        tab1, tab2 = st.tabs([
+            f"✨ 改善後テキスト" + (f"（{adopted_count}件反映済み）" if adopted_count > 0 else "（採用すると更新されます）"),
+            "⏳ 原文"
+        ])
 
-        with top_l:
-            st.markdown("**原文**")
-            original_text = get_original_text()
-            st.markdown(
-                f"<div style='background:#f8f8f8;border:1px solid #ddd;border-radius:8px;"
-                f"padding:14px;min-height:220px;font-size:0.92em;line-height:1.9;"
-                f"color:#555;white-space:pre-wrap'>{original_text}</div>",
-                unsafe_allow_html=True,
-            )
-
-        with top_r:
-            adopted_count = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
-            label = f"**改善後**　" + (f"（{adopted_count}件反映済み）" if adopted_count > 0 else "")
-            st.markdown(label)
-
+        with tab1:
             lines_html = ""
             for ws in st.session_state["working_sentences"]:
                 if ws["adopted"]:
@@ -316,11 +306,19 @@ if st.session_state["result"] is not None:
                     )
                 else:
                     lines_html += ws["current"]
-
             st.markdown(
                 f"<div style='background:#f0fff4;border:1px solid #b2dfdb;border-radius:8px;"
-                f"padding:14px;min-height:220px;font-size:0.92em;line-height:1.9;"
+                f"padding:14px;min-height:200px;font-size:0.95em;line-height:1.9;"
                 f"color:#333;white-space:pre-wrap'>{lines_html}</div>",
+                unsafe_allow_html=True,
+            )
+
+        with tab2:
+            original_text = get_original_text()
+            st.markdown(
+                f"<div style='background:#f8f8f8;border:1px solid #ddd;border-radius:8px;"
+                f"padding:14px;min-height:200px;font-size:0.95em;line-height:1.9;"
+                f"color:#555;white-space:pre-wrap'>{original_text}</div>",
                 unsafe_allow_html=True,
             )
 
