@@ -1,3 +1,4 @@
+import re
 from constants import DISCOURSE_MARKERS, ACTION_TEMPLATES, WEAK_PATTERNS
 
 def suggest_for_topic_jump(s1, s2, subj2=None):
@@ -21,7 +22,12 @@ def suggest_for_weak_relation(sentence, category="抽象語逃げ"):
     return {"advice": [action], "example": example}
 
 def suggest_for_missing_subject(sentence):
-    # 短い接続詞のみ先頭から1つ除去（「本研究では」などのトピック句は残す）
+    """
+    主語不在文に対して改善例を生成する。
+    トピック句（〜は、〜では、など）がある場合はそのまま残し
+    文頭に（主語）プレースホルダを置く。
+    接続詞のみの場合はそれを除去してから補う。
+    """
     CONJUNCTIONS = ["しかし、", "また、", "さらに、", "そして、", "ただし、", "なお、", "一方、", "つまり、"]
     rest = sentence
     for conj in CONJUNCTIONS:
@@ -30,9 +36,17 @@ def suggest_for_missing_subject(sentence):
             break
     if not rest:
         rest = sentence
+
+    # トピック句がある場合：（主語）を文頭に置くだけ（は、を重複させない）
+    topic_match = re.match(r'^(.{1,8}[はでにもを]、)', rest)
+    if topic_match:
+        example = f"（主語）{rest}"
+    else:
+        example = f"（主語）は、{rest}"
+
     return {
         "advice": ["主語が省略されています。誰が・何がの主体を明示してください。"],
-        "example": f"（主語）は、{rest}"
+        "example": example
     }
 
 def generate_suggestions(result):

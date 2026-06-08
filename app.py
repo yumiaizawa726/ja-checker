@@ -204,42 +204,43 @@ if st.session_state["result"] is not None:
                     if already_adopted:
                         h2.success("✅ 採用済み")
 
-                    # ① 対象文
+                    # ① 対象文（シンプルなボーダーのみ）
                     st.caption("対象文")
-                    st.error(s["sentence"])
+                    st.markdown(
+                        f"<div style='border-left:4px solid #e57373;background:#1a1a1a;"
+                        f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
+                        f"line-height:1.7;color:#eee'>{s['sentence']}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                    # ② 何が問題か
-                    advice_text = s["advice"][0] if isinstance(s["advice"], list) else s["advice"]
-                    st.caption("何が問題か")
-                    st.warning(advice_text)
-
-                    # ③ 今すぐやること
+                    # ② 今すぐやること（1行に集約）
                     st.caption("今すぐやること")
-                    st.info(s["one_action"])
+                    st.markdown(
+                        f"<div style='background:#2a2a2a;padding:10px 14px;border-radius:4px;"
+                        f"font-size:0.92em;line-height:1.7;color:#ccc'>{s['one_action']}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                    # ④ 改善例（Before / After）
+                    # ③ Before / After（縦並び・全幅）
                     st.caption("改善例")
-                    ba_l, ba_r = st.columns(2)
-                    with ba_l:
-                        st.markdown("**Before**")
-                        st.markdown(
-                            f"<div style='background:#ffd7d7;padding:8px;border-radius:6px;"
-                            f"font-size:0.88em;color:#333;line-height:1.6'>{s['sentence']}</div>",
-                            unsafe_allow_html=True,
-                        )
-                    with ba_r:
-                        st.markdown("**After**")
-                        after_display = s["example"].replace("\n", "<br>")
-                        st.markdown(
-                            f"<div style='background:#d4edda;padding:8px;border-radius:6px;"
-                            f"font-size:0.88em;color:#333;line-height:1.6'>{after_display}</div>",
-                            unsafe_allow_html=True,
-                        )
+                    st.markdown(
+                        f"<div style='margin-bottom:4px'><span style='font-size:0.8em;"
+                        f"color:#aaa'>Before</span></div>"
+                        f"<div style='background:#3a1a1a;border-left:3px solid #e57373;"
+                        f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
+                        f"line-height:1.7;color:#eee;margin-bottom:8px'>{s['sentence']}</div>"
+                        f"<div style='margin-bottom:4px'><span style='font-size:0.8em;"
+                        f"color:#aaa'>After</span></div>"
+                        f"<div style='background:#1a3a1a;border-left:3px solid #66bb6a;"
+                        f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
+                        f"line-height:1.7;color:#eee'>{s['example'].replace(chr(10), '<br>')}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-                    # ⑤ 採用／却下ボタン
+                    # ④ 採用／却下ボタン
                     if not already_adopted:
                         st.markdown("")
-                        btn1, btn2 = st.columns(2)
+                        btn1, btn2 = st.columns([2, 1])
                         if btn1.button("✅ 採用", key=f"adopt_{i}", use_container_width=True, type="primary"):
                             after_text = s["example"].split("\n")[0]
                             if after_text.startswith("【"):
@@ -325,8 +326,10 @@ if st.session_state["result"] is not None:
         # コピー用
         st.markdown("")
         final_text = get_working_text()
+        adopted_total = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
+        copy_label = f"📋 コピー用（改善後テキスト全文 ／ {adopted_total}件反映済み）"
         st.text_area(
-            "コピー用（改善後テキスト全文）",
+            copy_label,
             value=final_text,
             height=130,
         )
