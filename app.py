@@ -134,7 +134,7 @@ if st.session_state["result"] is not None:
     adopted_count = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
     remaining = len(suggestions) - adopted_count
 
-    if total_issues == 0:
+    if len(suggestions) == 0:
         st.success("✅ 改善提案はありません。そのまま使用できます。")
     else:
         col_s, col_l, col_lo, col_st, col_rem = st.columns(5)

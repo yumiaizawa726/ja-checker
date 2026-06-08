@@ -18,7 +18,15 @@ def suggest_for_weak_relation(sentence, category="抽象語逃げ"):
             matched = True
             break
     if not matched:
-        example = f"前の調査結果を踏まえ、{sentence}"
+        # カテゴリに応じたフォールバック
+        if category in ("結論ジャンプ", "因果不足"):
+            example = f"〔根拠文をここに追加〕{sentence}"
+        elif category in ("比較軸不足",):
+            example = f"〔比較対象との差異〕{sentence}"
+        elif category in ("根拠不足",):
+            example = f"〔具体的なデータ・引用〕{sentence}"
+        else:
+            example = f"〔具体的な内容〕{sentence}"
     return {"advice": [action], "example": example}
 
 def suggest_for_missing_subject(sentence):
