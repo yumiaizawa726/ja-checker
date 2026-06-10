@@ -223,6 +223,7 @@ if st.session_state["result"] is not None:
 
                     # ③ Before / After（縦並び・全幅）
                     st.caption("改善例")
+                    example_html = s["example"].replace("\n", "<br>").replace(chr(10), "<br>")
                     st.markdown(
                         f"<div style='margin-bottom:4px'><span style='font-size:0.8em;"
                         f"color:#aaa'>Before</span></div>"
@@ -233,7 +234,7 @@ if st.session_state["result"] is not None:
                         f"color:#aaa'>After</span></div>"
                         f"<div style='background:#1a3a1a;border-left:3px solid #66bb6a;"
                         f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
-                        f"line-height:1.7;color:#eee'>{s['example'].replace(chr(10), '<br>')}</div>",
+                        f"line-height:1.7;color:#eee'>{example_html}</div>",
                         unsafe_allow_html=True,
                     )
 
