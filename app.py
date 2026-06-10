@@ -223,20 +223,35 @@ if st.session_state["result"] is not None:
 
                     # ③ Before / After（縦並び・全幅）
                     st.caption("改善例")
-                    example_html = s["example"].replace("\n", "<br>").replace(chr(10), "<br>")
+                    st.markdown("**Before**")
                     st.markdown(
-                        f"<div style='margin-bottom:4px'><span style='font-size:0.8em;"
-                        f"color:#aaa'>Before</span></div>"
                         f"<div style='background:#3a1a1a;border-left:3px solid #e57373;"
                         f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
-                        f"line-height:1.7;color:#eee;margin-bottom:8px'>{s['sentence']}</div>"
-                        f"<div style='margin-bottom:4px'><span style='font-size:0.8em;"
-                        f"color:#aaa'>After</span></div>"
-                        f"<div style='background:#1a3a1a;border-left:3px solid #66bb6a;"
-                        f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
-                        f"line-height:1.7;color:#eee'>{example_html}</div>",
+                        f"line-height:1.7;color:#eee;margin-bottom:8px'>{s['sentence']}</div>",
                         unsafe_allow_html=True,
                     )
+                    st.markdown("**After**")
+                    for line in s["example"].split("\n"):
+                        if not line:
+                            continue
+                        if line.startswith("【"):
+                            st.markdown(
+                                f"<div style='background:#1a2a1a;padding:4px 10px;"
+                                f"font-size:0.85em;color:#aaa'>{line}</div>",
+                                unsafe_allow_html=True,
+                            )
+                        elif line.startswith("↓"):
+                            st.markdown(
+                                f"<div style='color:#888;font-size:0.85em;padding:4px 10px'>{line}</div>",
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.markdown(
+                                f"<div style='background:#1a3a1a;border-left:3px solid #66bb6a;"
+                                f"padding:10px 14px;border-radius:4px;font-size:0.92em;"
+                                f"line-height:1.7;color:#eee'>{line}</div>",
+                                unsafe_allow_html=True,
+                            )
 
                     # ④ 採用／却下ボタン
                     if not already_adopted:
