@@ -145,7 +145,7 @@ if st.session_state["result"] is not None:
         col_rem.metric(
             "残り提案",
             f"{remaining}件",
-            delta=f"-{adopted_count}件採用済み" if adopted_count > 0 else None,
+            delta=f"{adopted_count}件採用済み" if adopted_count > 0 else None,
             delta_color="normal",
         )
 
