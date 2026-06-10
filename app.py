@@ -132,7 +132,7 @@ if st.session_state["result"] is not None:
     st.divider()
     total_issues = p["主語"] + p["論理"] + p["長文"] + p["構造"]
     adopted_count = sum(1 for ws in st.session_state["working_sentences"] if ws["adopted"])
-    remaining = len(suggestions) - adopted_count
+    remaining = max(0, len(suggestions) - adopted_count)
 
     if len(suggestions) == 0:
         st.success("✅ 改善提案はありません。そのまま使用できます。")
@@ -242,9 +242,10 @@ if st.session_state["result"] is not None:
                         st.markdown("")
                         btn1, btn2 = st.columns([2, 1])
                         if btn1.button("✅ 採用", key=f"adopt_{i}", use_container_width=True, type="primary"):
-                            after_text = s["example"].split("\n")[0]
-                            if after_text.startswith("【"):
-                                after_text = after_text.split("】", 1)[-1].strip()
+                            # 【型】【例】↓ などのメタ行を除いて本文行を取得
+                            lines = s["example"].split("\n")
+                            body_lines = [l for l in lines if l and not l.startswith("【") and not l.startswith("↓")]
+                            after_text = body_lines[0] if body_lines else s["sentence"]
                             apply_adoption(s["sentence"], after_text, s["alert_type"], s["one_action"])
                             st.toast("✅ 採用しました。右側のテキストに反映されました。")
                             st.rerun()
